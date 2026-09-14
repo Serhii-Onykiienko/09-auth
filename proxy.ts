@@ -21,44 +21,49 @@ export async function proxy(request: NextRequest) {
     matchesRoute(pathname, route)
   );
 
-  const cookieHeader = request.headers.get('cookie') ?? '';
+  const accessToken = request.cookies.get('accessToken')?.value;
+  const refreshToken = request.cookies.get('refreshToken')?.value;
 
-  let isAuthenticated = false;
-  let setCookie: string | string[] | undefined;
-
-  try {
-    const sessionResponse = await checkSession(cookieHeader);
-
-    isAuthenticated = sessionResponse.data.success;
-    setCookie = sessionResponse.headers['set-cookie'];
-  } catch {
-    isAuthenticated = false;
-  }
+  let isAuthenticated = Boolean(accessToken);
 
   let response = NextResponse.next();
+
+  if (!accessToken && refreshToken) {
+    try {
+      const cookieHeader = request.headers.get('cookie') ?? '';
+
+      const sessionResponse = await checkSession(cookieHeader);
+
+      isAuthenticated = sessionResponse.data.success;
+
+      const setCookie = sessionResponse.headers['set-cookie'];
+
+      if (setCookie) {
+        const cookies = Array.isArray(setCookie) ? setCookie : [setCookie];
+
+        for (const cookieString of cookies) {
+          const parsedCookie = parseSetCookie(cookieString);
+
+          if (parsedCookie.name && parsedCookie.value) {
+            response.cookies.set(
+              parsedCookie.name,
+              parsedCookie.value,
+              parsedCookie
+            );
+          }
+        }
+      }
+    } catch {
+      isAuthenticated = false;
+    }
+  }
 
   if (isPrivateRoute && !isAuthenticated) {
     response = NextResponse.redirect(new URL('/sign-in', request.url));
   }
 
   if (isPublicRoute && isAuthenticated) {
-    response = NextResponse.redirect(new URL('/profile', request.url));
-  }
-
-  if (setCookie) {
-    const cookieArray = Array.isArray(setCookie) ? setCookie : [setCookie];
-
-    for (const cookieString of cookieArray) {
-      const parsedCookie = parseSetCookie(cookieString);
-
-      if (parsedCookie.name && parsedCookie.value) {
-        response.cookies.set(
-          parsedCookie.name,
-          parsedCookie.value,
-          parsedCookie
-        );
-      }
-    }
+    response = NextResponse.redirect(new URL('/', request.url));
   }
 
   return response;
