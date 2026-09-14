@@ -12,16 +12,24 @@ function matchesRoute(pathname: string, route: string) {
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  const isPrivateRoute = privateRoutes.some((route) =>
+  const isPrivateRoute = privateRoutes.some(route =>
     matchesRoute(pathname, route)
   );
 
-  const isPublicRoute = publicRoutes.some((route) =>
+  const isPublicRoute = publicRoutes.some(route =>
     matchesRoute(pathname, route)
   );
 
-  const cookieHeader = request.headers.get('cookie') ?? '';
-  const isAuthenticated = await checkSession(cookieHeader);
+  const accessToken = request.cookies.get('accessToken')?.value;
+  const refreshToken = request.cookies.get('refreshToken')?.value;
+
+  let isAuthenticated = Boolean(accessToken);
+
+  if (!isAuthenticated && refreshToken) {
+    const cookieHeader = request.headers.get('cookie') ?? '';
+
+    isAuthenticated = await checkSession(cookieHeader);
+  }
 
   if (isPrivateRoute && !isAuthenticated) {
     return NextResponse.redirect(new URL('/sign-in', request.url));
@@ -35,10 +43,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    '/notes/:path*',
-    '/profile/:path*',
-    '/sign-in',
-    '/sign-up',
-  ],
+  matcher: ['/notes/:path*', '/profile/:path*', '/sign-in', '/sign-up'],
 };
