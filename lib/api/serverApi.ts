@@ -75,14 +75,12 @@ export async function getMe(): Promise<User> {
   return response.data;
 }
 
-export async function checkSession(
-  cookieHeader?: string
-): Promise<AxiosResponse<SessionResponse>> {
-  const currentCookieHeader = cookieHeader ?? (await getCookieHeader());
+export async function checkSession() {
+  const cookieStore = await cookies();
 
-  const response = await api.get<SessionResponse>('/auth/session', {
+  const response = await api.get('/auth/session', {
     headers: {
-      Cookie: currentCookieHeader,
+      Cookie: cookieStore.toString(),
     },
   });
 
